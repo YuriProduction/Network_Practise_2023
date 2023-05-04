@@ -1,7 +1,9 @@
-import socket
-import pickle
 import os
+import pickle
+import socket
 from datetime import datetime, timedelta
+
+from dnslib import DNSRecord, RCODE
 
 CACHE_FILE = 'cache.pickle'  # File name to store cache data
 TTL_SECONDS = 3600  # TTL for cache entries (1 hour)
@@ -9,53 +11,60 @@ TTL_SECONDS = 3600  # TTL for cache entries (1 hour)
 
 class DNSServer:
     def __init__(self):
-        self.domain_to_ip = {}
-        self.ip_to_domain = {}
+        self.cache = {}
         self.load_cache()
 
     def load_cache(self):
         if os.path.exists(CACHE_FILE):
             with open(CACHE_FILE, 'rb') as file:
                 cache_data = pickle.load(file)
-                if 'domain_to_ip' in cache_data and 'ip_to_domain' in cache_data:
-                    self.domain_to_ip = cache_data['domain_to_ip']
-                    self.ip_to_domain = cache_data['ip_to_domain']
+                for key, (record, expiry) in cache_data.items():
+                    if datetime.now() - expiry < timedelta(seconds=TTL_SECONDS):
+                        self.cache[key] = (record, expiry)
 
     def save_cache(self):
-        cache_data = {'domain_to_ip': self.domain_to_ip, 'ip_to_domain': self.ip_to_domain}
         with open(CACHE_FILE, 'wb') as file:
-            pickle.dump(cache_data, file)
+            pickle.dump(self.cache, file)
 
-    def resolve(self, domain):
-        if domain in self.domain_to_ip:
-            ip_address = self.domain_to_ip[domain]
-            if ip_address in self.ip_to_domain:
-                self.ip_to_domain[ip_address] = datetime.now()  # Update the timestamp for IP-to-domain mapping
-            return ip_address
-        else:
-            # Perform your DNS resolution logic here to obtain the IP address for the domain
-            ip_address = self.dns_resolve(domain)  # Replace with your DNS resolution function
-            self.domain_to_ip[domain] = ip_address
-            self.ip_to_domain[ip_address] = datetime.now()
-            self.save_cache()  # Save cache data after adding a new entry
-            return ip_address
+    def get_record_from_cache(self, key):
+        record_data = self.cache.get(key)
+        if record_data:
+            record, expiry = record_data
+            return record
+        return None
 
-    def dns_resolve(self, domain):
-        # Implement your DNS resolution logic here
-        # Return the IP address corresponding to the given domain
-        # This function should handle the actual DNS resolution process, such as querying external DNS servers
-        # Replace this placeholder implementation with your own implementation
-        return socket.gethostbyname(domain)
+    def resolve(self, query_data):
+        try:
+            query = DNSRecord.parse(query_data)
+            # берем из кэша
+            cached_record = self.get_record_from_cache((query.q.qname, query.a.rtype))
+            # удалось - возвращаем
+            if cached_record:
+                return cached_record.pack()
+
+            # не удвлось - спрашиваем у днс гугла на соответсвующем порту
+            response = query.send("8.8.8.8", 53)
+            response_record = DNSRecord.parse(response)
+
+            if response_record.header.rcode == RCODE.NOERROR:
+                self.update_cache(response_record.a.rname, response_record)
+                self.save_cache()
+
+            return response
+        except Exception as e:
+            print(f"Error: {e}")
+            return None
 
     def remove_expired_entries(self):
         now = datetime.now()
-        expired_ips = [ip for ip, timestamp in self.ip_to_domain.items() if
-                       now - timestamp >= timedelta(seconds=TTL_SECONDS)]
-        for ip in expired_ips:
-            del self.ip_to_domain[ip]
-            domains_to_remove = [domain for domain, ip_address in self.domain_to_ip.items() if ip_address == ip]
-            for domain in domains_to_remove:
-                del self.domain_to_ip[domain]
+        expired_ips = [record for record, timestamp in self.cache.items() if
+                       now - timestamp[1] >= timedelta(seconds=TTL_SECONDS)]
+        for record in expired_ips:
+            del self.cache[record]
+
+    def update_cache(self, key, record):
+        # сохраняем как ключ еще и тип записи
+        self.cache[(key, record.a.rtype)] = (record, datetime.now())
 
     def run(self):
         server_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -63,19 +72,18 @@ class DNSServer:
 
         print("DNS Server started.")
 
-        while True:
-            data, addr = server_socket.recvfrom(1024)
-            domain = data.decode().strip()
+        try:
+            while True:
+                query_data, addr = server_socket.recvfrom(1024)
+                resp_data = self.resolve(query_data)
 
-            if domain == 'exit':
-                break
+                if resp_data:
+                    server_socket.sendto(resp_data, addr)
 
-            ip_address = self.resolve(domain)
-            server_socket.sendto(ip_address.encode(), addr)
-
-            self.remove_expired_entries()  # Remove expired cache entries after each request
-
-        server_socket.close()
+                self.remove_expired_entries()  # Remove expired cache entries after each request
+        except KeyboardInterrupt:
+            print('Interrupted. DNS server is switching of...')
+            server_socket.close()
 
 
 dns_server = DNSServer()
