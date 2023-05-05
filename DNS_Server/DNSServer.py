@@ -2,11 +2,11 @@ import os
 import pickle
 import socket
 from datetime import datetime, timedelta
-
+import re
 from dnslib import DNSRecord, RCODE
 
-CACHE_FILE = 'cache.pickle'  # File name to store cache data
-TTL_SECONDS = 3600  # TTL for cache entries (1 hour)
+CACHE_FILE = 'cache.pickle'
+TTL_SECONDS = 10
 
 
 class DNSServer:
@@ -42,8 +42,8 @@ class DNSServer:
             if cached_record:
                 return cached_record.pack()
 
-            # не удвлось - спрашиваем у днс гугла на соответсвующем порту
-            response = query.send("8.8.8.8", 53)
+            # DNS яндекса
+            response = query.send('77.88.8.1', 53)
             response_record = DNSRecord.parse(response)
 
             if response_record.header.rcode == RCODE.NOERROR:
@@ -51,9 +51,30 @@ class DNSServer:
                 self.save_cache()
 
             return response
-        except Exception as e:
-            print(f"Error: {e}")
+        except Exception as error:
+            print(f"Error: {error}")
             return None
+
+    def ip_to_domain(self, ip_address):
+        try:
+            domain_name = socket.gethostbyaddr(ip_address)[0]
+            return domain_name
+        except socket.herror:
+            return "Не удалось разрешить доменное имя"
+
+    def is_valid_ip(self, ip_address):
+        pattern = r'^(\d{1,3}\.){3}\d{1,3}$'
+        if re.match(pattern, ip_address):
+            return True
+        else:
+            return False
+
+    def domain_to_ip(self, domain_name):
+        try:
+            ip_address = socket.gethostbyname(domain_name)
+            return ip_address
+        except socket.gaierror:
+            return "Не удалось разрешить IP-адрес"
 
     def remove_expired_entries(self):
         now = datetime.now()
