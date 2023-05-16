@@ -1,3 +1,4 @@
+import argparse
 import os
 
 import requests
@@ -9,7 +10,6 @@ with open("private_token.txt", 'r') as text_file:
 session = vk_api.VkApi(token=tok)
 vk = session.get_api()
 
-MY_STRING_ID = 'm.a_sick'
 COUNT_GROUPS = 20
 
 
@@ -100,14 +100,24 @@ def save_photoes_by_user_name(photoes_urls: list, user_id: int):
             handler.write(img_data)
 
 
+def parse_arguments():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('type', type=str, help='Type of request [f,g,a,p]'
+                                               'f - friends,'
+                                               'g - groups,'
+                                               'a - albums,'
+                                               'p - photos')
+    parser.add_argument('nickname', type=str, help='User ID')
+    args = parser.parse_args()
+    if args.type == 'f':
+        parse_friends(get_friends(get_int_id_by_string_id(args.nickname)))
+    if args.type == 'g':
+        parse_groups(get_groups(get_int_id_by_string_id(args.nickname), COUNT_GROUPS))
+    if args.type == 'a':
+        parse_photo_albums(get_photo_albums(get_int_id_by_string_id(args.nickname)))
+    if args.type == 'p':
+        parse_user_photoes(get_user_photoes(get_int_id_by_string_id(args.nickname)))
+
+
 if __name__ == '__main__':
-    MY_ID = get_int_id_by_string_id(MY_STRING_ID)
-    print(get_user_name_by_id(MY_ID))
-    parse_friends(get_friends(MY_ID))
-    print()
-    print()
-    parse_groups(get_groups(MY_ID, COUNT_GROUPS))
-    print()
-    print()
-    parse_photo_albums(get_photo_albums(MY_ID))
-    parse_user_photoes(get_user_photoes(MY_ID))
+    parse_arguments()
