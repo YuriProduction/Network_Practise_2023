@@ -4,29 +4,37 @@ import os
 import socket
 import ssl
 import mimetypes
-
+import time
 BUF_LEN = 1024
 host_addr = 'smtp.yandex.ru'
 port = 465
 
 
 def request(s, req):
-    # s.send((req + '\n').encode())
-    # s.settimeout(1)
-    #
-    # recv_data = ' '
-    # try:
-    #     while recv_data:
-    #         recv_data += s.recv(BUF_LEN).decode()
-    # except socket.timeout:
-    #     pass
-    #
-    # return recv_data
-
     s.send((req + '\n').encode())
-    recv_data = s.recv(65535).decode()  # надо в цикле
+    s.setblocking(0)  # Set socket to non-blocking mode
+    recv_data = b""
+    while True:
+        try:
+            chunk = s.recv(4096)
+            if not chunk:
+                break
+            recv_data += chunk
+            while len(recv_data) >= 4096:
+                # Process the received data here
+                recv_data = recv_data[4096:]
+        except socket.error as e:
+            if e.errno == socket.errno.EWOULDBLOCK:
+                # No data available yet, handle it as needed
+                print("No data available. Retrying...")
+                # Add your retry logic here
+                time.sleep(1)  # Wait for 1 second before retrying
+                continue
+            else:
+                # Other socket error occurred, handle it as needed
+                print("Socket error:", e)
+                break
     return recv_data
-
 
 class SMTPClient:
     def __init__(self):
