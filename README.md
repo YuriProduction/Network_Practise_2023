@@ -1,1 +1,1 @@
-Network_Practise_2023
+Tasks related to Ural Federal University course "Internet Protocols".
