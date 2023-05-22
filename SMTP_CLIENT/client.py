@@ -60,6 +60,7 @@ class SMTPClient:
             message_body += f'--{boundary_msg}\n'
 
             for attachment in os.listdir(self.attachments_path):
+                message_body += f'--{boundary_msg}\n'
                 message_body += 'Content-Disposition: attachment;\n' \
                                 f'\tfilename="{attachment}"\n'
                 message_body += 'Content-Transfer-Encoding: base64\n'
@@ -72,7 +73,7 @@ class SMTPClient:
 
                 message_body += str_attachment + '\n'
 
-                message_body += f'--{boundary_msg}--\n'
+            message_body += f'--{boundary_msg}--\n'
 
             message = headers + '\n' + message_body + '.\n'
             print(message)
@@ -118,4 +119,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
