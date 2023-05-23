@@ -8,7 +8,7 @@ def check_tcp_port(address, port, mode):
         sock.settimeout(0.3)
         try:
             sock.connect((address, port))
-            print('Tcp port ' + str(port) + ' is open!')
+            print('Tcp PORT ' + str(port) + ' is open!')
             sock.close()
         except:
             pass

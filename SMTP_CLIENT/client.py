@@ -5,14 +5,15 @@ import socket
 import ssl
 import mimetypes
 import time
+
 BUF_LEN = 1024
-host_addr = 'smtp.yandex.ru'
-port = 465
+HOST_ADDR = 'smtp.yandex.ru'
+PORT = 465
 
 
 def request(s, req):
     s.send((req + '\n').encode())
-    s.setblocking(0)  # Set socket to non-blocking mode
+    s.setblocking(0)
     recv_data = b""
     while True:
         try:
@@ -21,20 +22,17 @@ def request(s, req):
                 break
             recv_data += chunk
             while len(recv_data) >= 4096:
-                # Process the received data here
                 recv_data = recv_data[4096:]
         except socket.error as e:
             if e.errno == socket.errno.EWOULDBLOCK:
-                # No data available yet, handle it as needed
                 print("No data available. Retrying...")
-                # Add your retry logic here
-                time.sleep(1)  # Wait for 1 second before retrying
+                time.sleep(1)
                 continue
             else:
-                # Other socket error occurred, handle it as needed
                 print("Socket error:", e)
                 break
     return recv_data
+
 
 class SMTPClient:
     def __init__(self):
@@ -55,12 +53,11 @@ class SMTPClient:
             headers = f'from: {self.user_name_from}\n'
             users_name_to = ','.join(self.arr_user_name_to)
             headers += f'to: {users_name_to}\n'
-            headers += f'subject: {self.subject_msg}\n'  # короткая тема на латинице
+            headers += f'subject: {self.subject_msg}\n'
             headers += 'MIME-Version: 1.0\n'
             headers += 'Content-Type: multipart/mixed;\n' \
                        f'\tboundary={boundary_msg}\n'
 
-            # тело сообщения началось
             message_body = f'--{boundary_msg}\n'
             message_body += 'Content-Type: text/plain; charset=utf-8\n\n'
             msg = file_msg.read()
@@ -102,8 +99,8 @@ class SMTPClient:
             self.password = file.read().strip()  # считываем пароль из файла
 
     def action(self):
-        with socket.create_connection((host_addr, port)) as sock:
-            with self.ssl_contex.wrap_socket(sock, server_hostname=host_addr) as client:
+        with socket.create_connection((HOST_ADDR, PORT)) as sock:
+            with self.ssl_contex.wrap_socket(sock, server_hostname=HOST_ADDR) as client:
                 print(client.recv(1024))  # в smpt сервер первый говорит
                 print(request(client, f'ehlo {self.user_name_from}'))
                 base64login = base64.b64encode(self.user_name_from.encode()).decode()
@@ -117,7 +114,6 @@ class SMTPClient:
                     print(request(client, f"RCPT TO:{user_name_to}"))
                 print(request(client, 'DATA'))
                 print(request(client, self.message_prepare()))
-                # print(request(client, 'QUIT'))
 
 
 def main():
