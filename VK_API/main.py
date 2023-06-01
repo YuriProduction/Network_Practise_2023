@@ -2,20 +2,22 @@ import argparse
 import os
 
 import requests
-import vk_api
 
 with open("private_token.txt", 'r') as text_file:
     tok = text_file.readline()
-
-session = vk_api.VkApi(token=tok)
-vk = session.get_api()
 
 COUNT_GROUPS = 20
 
 
 def get_user_photoes(user_id: int) -> dict:
-    photoes = session.method('photos.getAll', {'owner_id': user_id})
-    return photoes
+    photos = requests.get("https://api.vk.com/method/photos.getAll?",
+                          params={
+                              'access_token': tok,
+                              'user_id': user_id,
+                              'v': 5.131,
+                              'owner_id': user_id
+                          }).json()['response']
+    return photos
 
 
 def parse_user_photoes(photoes_dict: dict):
@@ -29,34 +31,62 @@ def parse_user_photoes(photoes_dict: dict):
 
 
 def get_user_name_by_id(user_id: int) -> str:
-    user = session.method("users.get", {"user_ids": user_id})  # вместо 1 подставляете айди нужного юзера
+    user = requests.get("https://api.vk.com/method/users.get?",
+                        params={
+                            'access_token': tok,
+                            'user_id': user_id,
+                            'v': 5.131,
+                            "user_ids": user_id
+                        }).json()['response']
     return user[0]['first_name'] + ' ' + user[0]['last_name']
 
 
 def get_int_id_by_string_id(user_str_id: str) -> int:
-    return session.method("users.get", {'user_ids': user_str_id})[0]['id']
+    return requests.get(
+        "https://api.vk.com/method/users.get?",
+        params={
+            'access_token': tok,
+            'user_id': user_str_id,
+            'v': 5.131,
+            'user_ids': user_str_id
+        }
+    ).json()['response'][0]['id']
 
 
 def get_groups(user_id: int, count_groups: int):
-    groups_ids = session.method("groups.get",
-                                {"user_id": user_id,
-                                 "extended": 1,
-                                 "count": count_groups})
-    return groups_ids
+    groups = requests.get("https://api.vk.com/method/groups.get?",
+                          params={
+                              'access_token': tok,
+                              'user_id': user_id,
+                              'v': 5.131,
+                              "extended": 1,
+                              "count": count_groups
+                          }).json()['response']
+    return groups
 
 
 def get_friends(user_id: int):
-    friends_ids = session.method("friends.get",
-                                 {"user_id": user_id,
-                                  "order": "hints",
-                                  "fields": ["nickname",
-                                             "online"]})
-    return friends_ids
+    friends = requests.get("https://api.vk.com/method/friends.get?",
+                           params={
+                               'access_token': tok,
+                               'user_id': user_id,
+                               'v': 5.131,
+                               "order": "hints",
+                               "fields": ["nickname",
+                                          "online"]
+                           }).json()['response']
+
+    return friends
 
 
 def get_photo_albums(user_id: int):
-    all_albums = session.method("photos.getAlbums",
-                                {"owner_id": str(user_id)})
+    all_albums = requests.get("https://api.vk.com/method/photos.getAlbums?",
+                              params={
+                                  'access_token': tok,
+                                  'user_id': user_id,
+                                  'v': 5.131,
+                                  "owner_id": str(user_id)
+                              }).json()['response']
     return all_albums
 
 
